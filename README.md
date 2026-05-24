@@ -1,48 +1,31 @@
-# My Custom Action
+# Expo PR Preview CI
 
-Simple example of a custom GitHub Action implemented as a composite action.
+このリポジトリは、Expo プロジェクトで Pull Request ごとに差分プレビューを作成するための CI 設定です。
 
-## Inputs
+CI は [expo-preview.yml](expo-preview.yml) を使って以下を自動実行します。
 
-| Name | Required | Default | Description |
-| --- | --- | --- | --- |
-| `name` | No | `world` | Name to greet |
+- PR をトリガーに EAS Update を作成
+- 生成された Update Group ID を取得
+- PR に Expo Go 用 QR コードと Update URL をコメント
 
-## Outputs
+## 事前準備
 
-| Name | Description |
-| --- | --- |
-| `greeted-name` | The name that was greeted |
+1. GitHub のリポジトリ Secrets に EXPO_TOKEN を登録
+2. プロジェクトの app.json に expo.extra.eas.projectId が設定済みであることを確認
+3. ワークフローを GitHub Actions で実行できる場所に配置
 
-## Usage (from another repository)
+## ワークフロー概要
 
-```yaml
-name: Use custom action
+- Trigger: pull_request
+- Runtime: ubuntu-latest
+- Node.js: 24
+- CLI: eas-cli (npm でインストール)
 
-on:
-  workflow_dispatch:
+## 実行結果
 
-jobs:
-  run:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: <owner>/<repo>@v1
-        with:
-          name: Tomoya
-```
+PR に次の情報がコメントされます。
 
-## Local test in this repository
+- Expo Go で読み取れる QR コード
+- EAS Update の URL
 
-A workflow is already included:
-
-- `.github/workflows/test-action.yml`
-
-You can run it from the Actions tab with `workflow_dispatch`.
-
-## Release tags
-
-Create tags for stable references:
-
-- `v1`
-- `v1.0.0`
+これにより、レビュー中の PR 差分を実機ですばやく確認できます。
