@@ -1,0 +1,67 @@
+name: preview
+on:
+  pull_request:
+
+jobs:
+  update:
+    name: EAS Update
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - name: Check for EXPO_TOKEN
+        run: |
+          if [ -z "${{ secrets.EXPO_TOKEN }}" ]; then
+            echo "You must provide an EXPO_TOKEN secret linked to this project's Expo account in this repo's secrets. Learn more: https://docs.expo.dev/eas-update/github-actions"
+            exit 1
+          fi
+
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Setup EAS CLI
+        run: npm install --global eas-cli@latest
+
+      - name: Configure Expo token
+        run: echo "EXPO_TOKEN=${{ secrets.EXPO_TOKEN }}" >> "$GITHUB_ENV"
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Create EAS Update
+        id: eas_update
+        run: |
+          set -euo pipefail
+
+          OUTPUT_FILE=$(mktemp)
+          trap 'rm -f "$OUTPUT_FILE"' EXIT
+
+          eas update --auto --non-interactive --json | tee "$OUTPUT_FILE"
+
+          GROUP_ID=$(jq -r '[.[].group | select(. != null)][0] // empty' "$OUTPUT_FILE")
+          echo "group_id=$GROUP_ID" >> "$GITHUB_OUTPUT"
+
+      - name: Post preview comment
+        if: steps.eas_update.outputs.group_id != ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          PROJECT_ID=$(jq -r '.expo.extra.eas.projectId' app.json)
+          GROUP_ID="${{ steps.eas_update.outputs.group_id }}"
+          UPDATE_URL="https://u.expo.dev/$PROJECT_ID/group/$GROUP_ID"
+          QR_CODE_URL="https://qr.expo.dev/eas-update?slug=exp&projectId=$PROJECT_ID&groupId=$GROUP_ID"
+
+          gh pr comment "${{ github.event.pull_request.number }}" \
+            --repo "${{ github.repository }}" \
+            --body "🚀 **EAS Update Preview**
+
+          📱 **Scan QR code to open in Expo Go:**
+          ![QR Code]($QR_CODE_URL)
+
+          Update URL: \`$UPDATE_URL\`"
